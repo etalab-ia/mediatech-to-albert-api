@@ -53,13 +53,13 @@ python sync.py --force
 
 ## Environment variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ALBERT_API_TOKEN` | yes | — | Bearer token for Albert API |
-| `HUGGINGFACE_TOKEN` | yes | — | HuggingFace API token |
-| `ALBERT_API_URL` | no | `https://albert.api.etalab.gouv.fr` | Albert API base URL |
-| `SQLITE_PATH` | no | `./state.db` | Path to state database |
-| `LOG_LEVEL` | no | `INFO` | Logging level |
+| Variable | Required | Default                                 | Description |
+|----------|----------|-----------------------------------------|-------------|
+| `ALBERT_API_TOKEN` | yes | —                                       | Bearer token for Albert API |
+| `HUGGINGFACE_TOKEN` | yes | —                                       | HuggingFace API token |
+| `ALBERT_API_URL` | no | `https://albert.api.dev.etalab.gouv.fr` | Albert API base URL |
+| `SQLITE_PATH` | no | `./state.db`                            | Path to state database |
+| `LOG_LEVEL` | no | `INFO`                                  | Logging level |
 
 
 ## TODO

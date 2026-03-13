@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     # Albert API
     albert_api_url: str = Field(
-        default="https://albert.api.etalab.gouv.fr",
+        default="https://albert.api.dev.etalab.gouv.fr",
         description="Base URL for the Albert API",
     )
     albert_api_token: str = Field(
