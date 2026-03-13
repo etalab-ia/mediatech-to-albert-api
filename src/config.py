@@ -58,8 +58,19 @@ DATASETS = [
     "AgentPublic/cnil",
 ]
 
-# Metadata fields to extract from each dataset
-# These will be stored as chunk metadata in Albert
+# Field used as document name for each dataset
+DATASET_TITLE_FIELD: dict[str, str] = {
+    "AgentPublic/legi": "title",
+    "AgentPublic/travail-emploi": "title",
+    "AgentPublic/service-public": "title",
+    "AgentPublic/dole": "title",
+    "AgentPublic/constit": "title",
+    "AgentPublic/cnil": "title",
+    "AgentPublic/local-administrations-directory": "name",
+    "AgentPublic/state-administrations-directory": "name",
+}
+
+# Metadata fields to extract from each dataset (string/scalar fields only)
 DATASET_METADATA_FIELDS: dict[str, list[str]] = {
     "AgentPublic/legi": [
         "title",
@@ -86,12 +97,18 @@ DATASET_METADATA_FIELDS: dict[str, list[str]] = {
         "url",
     ],
     "AgentPublic/local-administrations-directory": [
-        "title",
-        "url",
+        "name",
+        "types",
+        "mission_description",
+        "additional_information",
+        "directory_url",
     ],
     "AgentPublic/state-administrations-directory": [
-        "title",
-        "url",
+        "name",
+        "types",
+        "mission_description",
+        "additional_information",
+        "directory_url",
     ],
     "AgentPublic/dole": [
         "title",
