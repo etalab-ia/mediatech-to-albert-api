@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     }
 
 
-# Datasets to sync - one collection per dataset
+# Datasets to sync
 DATASETS = [
     "AgentPublic/legi",
     "AgentPublic/travail-emploi",

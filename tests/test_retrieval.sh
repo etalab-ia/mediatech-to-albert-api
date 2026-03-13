@@ -1,3 +1,4 @@
+# TODO : make it a pytest script
 base_url = "https://albert.api.dev.etalab.gouv.fr/v1"
 api_key = "**"
 client = OpenAI(base_url=base_url, api_key=api_key)
