@@ -121,7 +121,7 @@ pytest tests/test_retrieval.py -v -m integration
 
 Runs a full sync of `AgentPublic/dole` from scratch and verifies RAG retrieval works afterwards.
 
-**Warning:** this test makes real API calls and takes several minutes (dataset download + ingestion).
+**Warning:** this test makes real API calls and takes 10 to 20 minutes.
 It deletes and recreates the `dole` collection in Albert.
 
 ```bash

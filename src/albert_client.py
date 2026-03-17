@@ -90,7 +90,7 @@ class AlbertClient:
         logger.info(f"Creating collection: {name}")
         response = self.client.post(
             "/v1/collections",
-            json={"name": name, "visibility": "public"},
+            json={"name": name, "visibility": "public", "owner": "albert.api@numerique.gouv.fr"},
             headers=self._json_headers,
         )
         data = self._handle_response(response)

@@ -48,15 +48,9 @@ def test_dole_e2e_sync_and_retrieval(albert_client, settings, tmp_path):
         ["python", "main.py", "--dataset", DATASET],
         cwd=str(REPO_ROOT),
         env=env,
-        capture_output=True,
-        text=True,
-        timeout=600,
+        timeout=3600,
     )
-    assert proc.returncode == 0, (
-        f"main.py exited with code {proc.returncode}\n"
-        f"--- stdout ---\n{proc.stdout}\n"
-        f"--- stderr ---\n{proc.stderr}"
-    )
+    assert proc.returncode == 0, f"main.py exited with code {proc.returncode}"
 
     # --- Phase 3: verify collection was created ---
     collection = albert_client.get_collection_by_name(COLLECTION_NAME)
