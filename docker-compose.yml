@@ -1,0 +1,9 @@
+services:
+  sync:
+    build: .
+    env_file: .env
+    volumes:
+      - state:/data
+
+volumes:
+  state:

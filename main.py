@@ -25,7 +25,7 @@ def setup_logging(level: str) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync HuggingFace datasets to Albert API")
     parser.add_argument("--dataset", "-d", type=str, help="Sync only this dataset")
-parser.add_argument("--status", "-s", action="store_true", help="Show sync status and exit")
+    parser.add_argument("--status", "-s", action="store_true", help="Show sync status and exit")
     parser.add_argument("--force", "-f", action="store_true", help="Force sync even if dataset unchanged")
     parser.add_argument(
         "--log-level", type=str, default=None, choices=["DEBUG", "INFO", "WARNING", "ERROR"]
@@ -110,7 +110,7 @@ def print_results(result) -> None:
 def main() -> int:
     args = parse_args()
 
-try:
+    try:
         settings = get_settings()
     except Exception as e:
         print(f"Error loading settings: {e}")

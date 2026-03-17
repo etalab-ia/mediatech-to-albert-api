@@ -39,33 +39,100 @@ cp .env.example .env
 
 ```bash
 # Sync all datasets
-python sync.py
+python main.py
 
 # Sync a single dataset
-python sync.py --dataset AgentPublic/travail-emploi
+python main.py --dataset AgentPublic/travail-emploi
 
 # Show sync status (HF chunks vs local vs Albert)
-python sync.py --status
+python main.py --status
 
 # Force re-sync even if dataset is unchanged
-python sync.py --force
+python main.py --force
 ```
 
 ## Environment variables
 
-| Variable | Required | Default                                 | Description |
-|----------|----------|-----------------------------------------|-------------|
-| `ALBERT_API_TOKEN` | yes | —                                       | Bearer token for Albert API |
-| `HUGGINGFACE_TOKEN` | yes | —                                       | HuggingFace API token |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ALBERT_API_TOKEN` | yes | — | Bearer token for Albert API |
+| `HUGGINGFACE_TOKEN` | yes | — | HuggingFace API token |
 | `ALBERT_API_URL` | no | `https://albert.api.dev.etalab.gouv.fr` | Albert API base URL |
-| `SQLITE_PATH` | no | `./state.db`                            | Path to state database |
-| `LOG_LEVEL` | no | `INFO`                                  | Logging level |
+| `SQLITE_PATH` | no | `./state.db` | Path to state database |
+| `LOG_LEVEL` | no | `INFO` | Logging level |
 
+## Docker
+
+The Docker image uses `/data` as the mount point for the persistent `state.db`.
+
+### Build
+
+```bash
+docker build -t mediatech-to-albert-api .
+```
+
+### Run with docker compose
+
+```bash
+# Sync all datasets
+docker compose run --rm sync
+
+# Sync a single dataset
+docker compose run --rm sync --dataset AgentPublic/dole
+
+# Show status
+docker compose run --rm sync --status
+```
+
+
+### Run with `docker run`
+
+```bash
+# Sync all datasets
+docker run --rm --env-file .env -v mediatech_state:/data mediatech-to-albert-api
+
+# Sync a single dataset
+docker run --rm --env-file .env -v mediatech_state:/data mediatech-to-albert-api --dataset AgentPublic/dole
+
+# Show status
+docker run --rm --env-file .env -v mediatech_state:/data mediatech-to-albert-api --status
+```
+
+The named volume `mediatech_state` persists `state.db` across container restarts and rebuilds.
+
+## Tests
+
+### Unit tests
+
+```bash
+pytest tests/test_sync_service.py tests/test_huggingface_source.py -v
+```
+
+### Integration tests
+
+Require a live Albert API and the `travail-emploi` collection to already be synced.
+Credentials must be set in `.env` or as environment variables.
+
+```bash
+pytest tests/test_retrieval.py -v -m integration
+```
+
+### End-to-end test (dole)
+
+Runs a full sync of `AgentPublic/dole` from scratch and verifies RAG retrieval works afterwards.
+
+**Warning:** this test makes real API calls and takes several minutes (dataset download + ingestion).
+It deletes and recreates the `dole` collection in Albert.
+
+```bash
+pytest tests/test_e2e_dole.py -v -m integration -s
+```
+
+- `-s` streams live output so you can follow the sync progress in real time.
+- The test uses an isolated temporary `state.db` and cleans up the Albert collection after it completes.
 
 ## TODO
 - see if perf can be improved (should take 9h for biggest collection)
-- handle state.db persistence (docker volume?)
-- deployment and scheduling (docker, ansible, gitlab CI scheduled pipelines)
-- add other tests
+- deployment and scheduling (ansible, gitlab CI scheduled pipelines)
 - make sure it doesn't slow down the API too much for other users
 - add matrix/tchap notifications

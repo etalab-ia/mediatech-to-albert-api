@@ -161,3 +161,25 @@ class AlbertClient:
             logger.debug(f"Uploaded batch {i // batch_size + 1}: {len(batch)} chunks")
 
         return all_ids
+
+    def search(
+        self,
+        prompt: str,
+        collection_ids: list[int],
+        k: int = 6,
+        method: str = "semantic",
+    ) -> list[dict]:
+        """Perform semantic search across specified collections. Returns list of results."""
+        payload = {
+            "prompt": prompt,
+            "collections": collection_ids,
+            "k": k,
+            "method": method,
+        }
+        response = self.client.post(
+            "/v1/search",
+            json=payload,
+            headers=self._json_headers,
+        )
+        data = self._handle_response(response)
+        return data.get("data", [])
