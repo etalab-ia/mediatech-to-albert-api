@@ -8,6 +8,7 @@ import sys
 from src.albert_client import AlbertClient
 from src.config import DATASETS, get_settings
 from src.huggingface_source import HuggingFaceSource
+from src.notifier import TchapNotifier
 from src.state_store import StateStore
 from src.sync_service import SyncService
 
@@ -122,7 +123,7 @@ def main() -> int:
     logger = logging.getLogger(__name__)
 
     with StateStore(settings.sqlite_path) as state_store:
-        with AlbertClient(settings.albert_api_url, settings.albert_api_token) as albert_client:
+        with AlbertClient(settings.albert_api_url, settings.albert_api_token, requests_per_second=settings.requests_per_second) as albert_client:
             hf_source = HuggingFaceSource(settings.huggingface_token)
 
             if args.status:
@@ -155,6 +156,15 @@ def main() -> int:
             )
             result = sync_service.sync_all(datasets_to_sync)
             print_results(result)
+
+            if settings.tchap_access_token and settings.tchap_room_id:
+                notifier = TchapNotifier(
+                    homeserver=settings.tchap_homeserver,
+                    access_token=settings.tchap_access_token,
+                    room_id=settings.tchap_room_id,
+                )
+                notifier.send(TchapNotifier.format_sync_result(result))
+
             return 0 if result.success else 1
 
 

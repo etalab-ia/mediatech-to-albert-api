@@ -32,11 +32,29 @@ class Settings(BaseSettings):
         default=64,
         description="Maximum number of chunks per API request",
     )
+    requests_per_second: float = Field(
+        default=2.0,
+        description="Maximum chunk-upload requests per second (rate limiting)",
+    )
 
     # Logging
     log_level: str = Field(
         default="INFO",
         description="Logging level",
+    )
+
+    # Tchap notifications (optional)
+    tchap_homeserver: str = Field(
+        default="https://matrix.agent.dinum.tchap.gouv.fr",
+        description="Tchap Matrix homeserver URL",
+    )
+    tchap_access_token: str | None = Field(
+        default=None,
+        description="Tchap access token — notifications disabled if not set",
+    )
+    tchap_room_id: str | None = Field(
+        default=None,
+        description="Tchap room ID to send notifications to",
     )
 
     model_config = {

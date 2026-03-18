@@ -1,12 +1,28 @@
 """HTTP client for the Albert API."""
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+class RateLimiter:
+    """Enforces a minimum interval between calls (adaptive: accounts for time already elapsed)."""
+
+    def __init__(self, requests_per_second: float):
+        self._min_interval = 1.0 / requests_per_second
+        self._last_call = 0.0
+
+    def wait(self) -> None:
+        elapsed = time.monotonic() - self._last_call
+        remaining = self._min_interval - elapsed
+        if remaining > 0:
+            time.sleep(remaining)
+        self._last_call = time.monotonic()
 
 
 class AlbertAPIError(Exception):
@@ -38,9 +54,10 @@ class ChunkData:
 class AlbertClient:
     """HTTP client for interacting with the Albert API."""
 
-    def __init__(self, base_url: str, api_token: str, timeout: float = 60.0):
+    def __init__(self, base_url: str, api_token: str, timeout: float = 60.0, requests_per_second: float = 2.0):
         self.base_url = base_url.rstrip("/")
         self._json_headers = {"Content-Type": "application/json"}
+        self._limiter = RateLimiter(requests_per_second)
         self.client = httpx.Client(
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {api_token}"},
@@ -151,10 +168,11 @@ class AlbertClient:
         chunks: list[ChunkData],
         batch_size: int = 64,
     ) -> list[int]:
-        """Upload chunks in batches. Returns all created chunk IDs."""
+        """Upload chunks in batches with rate limiting. Returns all created chunk IDs."""
         all_ids: list[int] = []
 
         for i in range(0, len(chunks), batch_size):
+            self._limiter.wait()
             batch = chunks[i : i + batch_size]
             ids = self.create_chunks(document_id, batch)
             all_ids.extend(ids)

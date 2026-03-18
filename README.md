@@ -100,6 +100,17 @@ docker run --rm --env-file .env -v mediatech_state:/data mediatech-to-albert-api
 
 The named volume `mediatech_state` persists `state.db` across container restarts and rebuilds.
 
+### Backup state.db
+
+```bash
+# Find the volume path on the host
+docker volume inspect mediatech-to-albert-api_state
+# → "Mountpoint": "/var/lib/docker/volumes/mediatech-to-albert-api_state/_data"
+
+# Copy directly from the host filesystem
+cp /var/lib/docker/volumes/mediatech-to-albert-api_state/_data/state.db ~/state.db.backup
+```
+
 ## Tests
 
 ### Unit tests
