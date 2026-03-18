@@ -30,10 +30,21 @@ class TchapNotifier:
             logger.warning(f"Failed to send Tchap notification: {e}")
 
     @staticmethod
-    def format_sync_result(result: SyncResult) -> str:
+    def _env_from_url(albert_api_url: str) -> str:
+        if "staging" in albert_api_url:
+            return "staging"
+        if "dev" in albert_api_url:
+            return "dev"
+        if albert_api_url.rstrip("/") == "https://albert.api.etalab.gouv.fr":
+            return "prod"
+        return albert_api_url
+
+    @staticmethod
+    def format_sync_result(result: SyncResult, albert_api_url: str = "") -> str:
         """Format a SyncResult into a human-readable message."""
-        status = "✅ Success sync" if result.success else "❌ Errors in sync"
-        lines = [status, ""]
+        env = TchapNotifier._env_from_url(albert_api_url)
+        status = "✅ Mediatech sync success" if result.success else "❌ Mediatech sync errors"
+        lines = [f"{status} [{env}]", ""]
 
         for ds in result.datasets:
             if not ds.success:
@@ -54,5 +65,5 @@ class TchapNotifier:
                     f" ({ds.chunks_uploaded:,} chunks, {ds.duration_seconds:.0f}s)"
                 )
 
-        lines.append(f"\nDuration : {result.total_duration_seconds:.0f}s")
+        lines.append(f"\nTotal duration : {result.total_duration_seconds:.0f}s")
         return "\n".join(lines)

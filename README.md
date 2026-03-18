@@ -41,8 +41,8 @@ cp .env.example .env
 # Sync all datasets
 python main.py
 
-# Sync a single dataset
-python main.py --dataset AgentPublic/travail-emploi
+# Sync only specific datasets
+python main.py --dataset AgentPublic/travail-emploi AgentPublic/dole
 
 # Show sync status (HF chunks vs local vs Albert)
 python main.py --status
@@ -82,20 +82,6 @@ docker compose run --rm sync --dataset AgentPublic/dole
 
 # Show status
 docker compose run --rm sync --status
-```
-
-
-### Run with `docker run`
-
-```bash
-# Sync all datasets
-docker run --rm --env-file .env -v mediatech_state:/data mediatech-to-albert-api
-
-# Sync a single dataset
-docker run --rm --env-file .env -v mediatech_state:/data mediatech-to-albert-api --dataset AgentPublic/dole
-
-# Show status
-docker run --rm --env-file .env -v mediatech_state:/data mediatech-to-albert-api --status
 ```
 
 The named volume `mediatech_state` persists `state.db` across container restarts and rebuilds.
@@ -138,12 +124,8 @@ It deletes and recreates the `dole` collection in Albert.
 ```bash
 pytest tests/test_e2e_dole.py -v -m integration -s
 ```
-
-- `-s` streams live output so you can follow the sync progress in real time.
 - The test uses an isolated temporary `state.db` and cleans up the Albert collection after it completes.
 
 ## TODO
-- see if perf can be improved (should take 9h for biggest collection)
+- see if perf can be improved
 - deployment and scheduling (ansible, gitlab CI scheduled pipelines)
-- make sure it doesn't slow down the API too much for other users
-- add matrix/tchap notifications

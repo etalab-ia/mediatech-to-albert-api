@@ -25,7 +25,7 @@ def setup_logging(level: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync HuggingFace datasets to Albert API")
-    parser.add_argument("--dataset", "-d", type=str, help="Sync only this dataset")
+    parser.add_argument("--dataset", "-d", type=str, nargs="+", help="Sync only these datasets (space-separated)")
     parser.add_argument("--status", "-s", action="store_true", help="Show sync status and exit")
     parser.add_argument("--force", "-f", action="store_true", help="Force sync even if dataset unchanged")
     parser.add_argument(
@@ -134,9 +134,10 @@ def main() -> int:
             logger.info(f"Albert API: {settings.albert_api_url}")
 
             if args.dataset:
-                if args.dataset not in DATASETS:
-                    logger.warning(f"Dataset {args.dataset} not in configured list, will try anyway")
-                datasets_to_sync = [args.dataset]
+                for ds in args.dataset:
+                    if ds not in DATASETS:
+                        logger.warning(f"Dataset {ds} not in configured list, will try anyway")
+                datasets_to_sync = args.dataset
             else:
                 datasets_to_sync = DATASETS
 
@@ -163,7 +164,7 @@ def main() -> int:
                     access_token=settings.tchap_access_token,
                     room_id=settings.tchap_room_id,
                 )
-                notifier.send(TchapNotifier.format_sync_result(result))
+                notifier.send(TchapNotifier.format_sync_result(result, settings.albert_api_url))
 
             return 0 if result.success else 1
 
