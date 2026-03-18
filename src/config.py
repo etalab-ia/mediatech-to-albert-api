@@ -88,7 +88,7 @@ DATASET_TITLE_FIELD: dict[str, str] = {
     "AgentPublic/state-administrations-directory": "name",
 }
 
-# Metadata fields to extract from each dataset (string/scalar fields only)
+# Metadata fields to extract from each dataset
 DATASET_METADATA_FIELDS: dict[str, list[str]] = {
     "AgentPublic/legi": [
         "title",

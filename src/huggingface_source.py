@@ -50,7 +50,7 @@ class HuggingFaceSource:
         self.api = HfApi(token=token)
 
     def get_chunk_count(self, dataset_name: str, config: str = "latest") -> int | None:
-        """Get total chunk count from dataset metadata (no download needed)."""
+        """Get total chunk count from dataset metadata."""
         try:
             disable_progress_bar()
             try:
@@ -78,7 +78,7 @@ class HuggingFaceSource:
             return DatasetInfo(name=dataset_name, last_modified=None)
 
     def _extract_metadata(self, row: dict[str, Any], dataset_name: str) -> dict[str, Any]:
-        """Extract relevant metadata fields from a dataset row (non-null scalar values only)."""
+        """Extract relevant metadata fields from a dataset row."""
         fields = DATASET_METADATA_FIELDS.get(dataset_name, ["title", "url"])
         metadata = {}
 
