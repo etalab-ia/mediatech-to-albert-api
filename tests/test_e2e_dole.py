@@ -1,14 +1,3 @@
-"""End-to-end test for AgentPublic/dole: sync then verify RAG retrieval.
-
-Flow:
-  1. Delete the dole collection from Albert if it already exists (clean slate).
-  2. Assert no dole collection exists → no RAG results possible.
-  3. Run `python main.py --dataset AgentPublic/dole` (subprocess, isolated state.db).
-  4. Assert the dole collection now exists with documents.
-  5. Perform a semantic search and verify chunks are returned.
-  6. Cleanup: delete the dole collection created by the test.
-"""
-
 import os
 import subprocess
 from pathlib import Path
@@ -68,10 +57,10 @@ def test_dole_e2e_sync_and_retrieval(albert_client, settings, tmp_path):
         k=6,
     )
     assert len(results) > 0, (
-        f"No chunks returned for query {SEARCH_QUERY!r} after syncing '{COLLECTION_NAME}'"
+        f"No chunks returned for query `{SEARCH_QUERY}` after syncing `{COLLECTION_NAME}`"
     )
     for result in results:
-        assert result["chunk"]["content"], "Each search result must have non-empty chunk content"
+        assert result.chunk["content"], "Each search result must have non-empty chunk content"
 
     # --- Cleanup ---
     albert_client.delete_collection(collection.id)

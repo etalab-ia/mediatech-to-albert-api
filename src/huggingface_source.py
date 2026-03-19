@@ -77,7 +77,6 @@ class HuggingFaceSource:
                 value = value.isoformat()
             if isinstance(value, str) and not value.strip():
                 continue
-            # TODO: verify whether Albert API has a 255-char limit on metadata values
             if isinstance(value, str) and len(value) > 255:
                 value = value[:252] + "..."
             metadata[field_name] = value
@@ -90,10 +89,32 @@ class HuggingFaceSource:
         if not value:
             return None
         title = str(value)
-        # TODO: verify whether Albert API has a 255-char limit on document names
         if len(title) > 255:
             return title[:252] + "..."
         return title
+
+    def _parse_chunk(self, row: dict[str, Any], doc_id: str, dataset_name: str) -> ChunkInfo | None:
+        chunk_id = row.get("chunk_id")
+        chunk_hash = row.get("chunk_xxh64")
+        content = row.get("chunk_text")
+
+        if not chunk_id:
+            logger.warning(f"Row missing chunk_id for doc {doc_id}, skipping")
+            return None
+        if not chunk_hash:
+            logger.warning(f"Row missing chunk_xxh64 for chunk {chunk_id}, skipping")
+            return None
+        if not content:
+            logger.warning(f"Row missing content for chunk {chunk_id}, skipping")
+            return None
+
+        return ChunkInfo(
+            chunk_id=chunk_id,
+            chunk_index=row["chunk_index"],
+            chunk_hash=chunk_hash,
+            content=content,
+            metadata=self._extract_metadata(row, dataset_name),
+        )
 
     def iter_documents(
         self,
@@ -137,27 +158,9 @@ class HuggingFaceSource:
                     chunks=[],
                 )
 
-            chunk_id = row.get("chunk_id")
-            chunk_hash = row.get("chunk_xxh64")
-            content = row.get("chunk_text") or row.get("text")
-
-            if not chunk_id:
-                logger.warning(f"Row missing chunk_id for doc {doc_id}, skipping")
+            chunk = self._parse_chunk(row, doc_id, dataset_name)
+            if chunk is None:
                 continue
-            if not chunk_hash:
-                logger.warning(f"Row missing chunk_xxh64 for chunk {chunk_id}, skipping")
-                continue
-            if not content:
-                logger.warning(f"Row missing content for chunk {chunk_id}, skipping")
-                continue
-
-            chunk = ChunkInfo(
-                chunk_id=chunk_id,
-                chunk_index=row["chunk_index"],
-                chunk_hash=chunk_hash,
-                content=content,
-                metadata=self._extract_metadata(row, dataset_name),
-            )
 
             current_document.chunks.append(chunk)
 

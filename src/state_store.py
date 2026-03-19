@@ -86,7 +86,6 @@ class StateStore:
         return self.session.execute(stmt).scalar_one_or_none()
 
     def get_collection_counts(self, collection_id: int) -> tuple[int, int]:
-        """Return (doc_count, chunk_count) for a collection."""
         doc_count = self.session.execute(
             select(func.count(Document.id)).where(Document.collection_id == collection_id)
         ).scalar()
@@ -159,9 +158,8 @@ class StateStore:
     def create_chunks_bulk(
         self,
         document_id: int,
-        chunks_data: list[tuple[str, str, str | None]],
+        chunks_data: list[tuple[str, str, str]],
     ) -> None:
-        """Create multiple chunks: list of (chunk_id_source, chunk_hash, albert_chunk_id)."""
         chunks = [
             Chunk(
                 document_id=document_id,

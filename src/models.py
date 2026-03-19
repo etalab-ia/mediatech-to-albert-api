@@ -8,7 +8,6 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     Index,
-    create_engine,
 )
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -183,7 +182,3 @@ class Chunk(Base):
         return f"<Chunk(id={self.id}, chunk_id={self.chunk_id_source})>"
 
 
-def init_db(sqlite_path: str) -> Session:
-    engine = create_engine(f"sqlite:///{sqlite_path}", echo=False)
-    Base.metadata.create_all(engine)
-    return Session(engine)

@@ -29,6 +29,6 @@ def test_semantic_search_returns_chunks(albert_client):
         k=6,
     )
 
-    assert len(results) > 0, f"No chunks returned for query: {SEARCH_QUERY!r}"
+    assert len(results) > 0, f"No chunks returned for query: `{SEARCH_QUERY}`"
     for result in results:
-        assert result["chunk"]["content"], "Each result must have non-empty chunk content"
+        assert result.chunk["content"], "Each result must have non-empty chunk content"

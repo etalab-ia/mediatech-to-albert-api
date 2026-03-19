@@ -43,10 +43,14 @@ class ChunkData:
     metadata: dict[str, Any] | None = None
 
 
+@dataclass
+class ChunkSearchResult:
+    chunk: dict[str, Any]
+
+
 class AlbertClient:
     def __init__(self, base_url: str, api_token: str, timeout: float = 60.0, requests_per_second: float = 2.0):
         self.base_url = base_url.rstrip("/")
-        self._json_headers = {"Content-Type": "application/json"}
         self._limiter = RateLimiter(requests_per_second)
         self.client = httpx.Client(
             base_url=self.base_url,
@@ -79,9 +83,7 @@ class AlbertClient:
 
     def get_collection_by_name(self, name: str) -> CollectionInfo | None:
         """Get a collection by its exact name, or None if not found."""
-        response = self.client.get(
-            "/v1/collections", params={"name": name}, headers=self._json_headers
-        )
+        response = self.client.get("/v1/collections", params={"name": name})
         data = self._handle_response(response)
         for c in data.get("data", []):
             if c["name"] == name:
@@ -98,7 +100,6 @@ class AlbertClient:
         response = self.client.post(
             "/v1/collections",
             json={"name": name, "visibility": "public", "owner": "albert.api@numerique.gouv.fr"},
-            headers=self._json_headers,
         )
         data = self._handle_response(response)
         collection_id = data["id"]
@@ -144,11 +145,7 @@ class AlbertClient:
             ]
         }
 
-        response = self.client.post(
-            f"/v1/documents/{document_id}/chunks",
-            json=payload,
-            headers=self._json_headers,
-        )
+        response = self.client.post(f"/v1/documents/{document_id}/chunks", json=payload)
         data = self._handle_response(response)
         if "ids" not in data:
             raise AlbertAPIError(200, "Missing 'ids' in response")
@@ -177,17 +174,13 @@ class AlbertClient:
         collection_ids: list[int],
         k: int = 6,
         method: str = "semantic",
-    ) -> list[dict]:
+    ) -> list[ChunkSearchResult]:
         payload = {
             "prompt": prompt,
             "collections": collection_ids,
             "k": k,
             "method": method,
         }
-        response = self.client.post(
-            "/v1/search",
-            json=payload,
-            headers=self._json_headers,
-        )
+        response = self.client.post("/v1/search", json=payload)
         data = self._handle_response(response)
-        return data.get("data", [])
+        return [ChunkSearchResult(chunk=item["chunk"]) for item in data.get("data", [])]

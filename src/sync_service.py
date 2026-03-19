@@ -3,20 +3,29 @@
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 
 from .albert_client import AlbertClient, ChunkData, AlbertAPIError
 from .config import Settings
 from .huggingface_source import HuggingFaceSource, DocumentInfo
-from .models import Collection, CollectionStatus
+from .models import Collection, CollectionStatus, Document
 from .state_store import StateStore
 
 logger = logging.getLogger(__name__)
 
 
+class DocumentAction(str, Enum):
+    CREATED = "created"
+    UPDATED = "updated"
+    UNCHANGED = "unchanged"
+    DELETED = "deleted"
+    FAILED = "failed"
+
+
 @dataclass
 class DocumentSyncResult:
     doc_id: str
-    action: str  # "created", "updated", "unchanged", "deleted", "failed"
+    action: DocumentAction
     chunks_count: int = 0
     error: str | None = None
 
@@ -122,31 +131,19 @@ class SyncService:
                 seen_doc_ids.add(doc_info.doc_id)
                 doc_result = self._sync_document(collection.id, albert_collection_id, doc_info)
 
-                if doc_result.action == "created":
+                if doc_result.action == DocumentAction.CREATED:
                     result.documents_created += 1
                     result.chunks_uploaded += doc_result.chunks_count
-                elif doc_result.action == "updated":
+                elif doc_result.action == DocumentAction.UPDATED:
                     result.documents_updated += 1
                     result.chunks_uploaded += doc_result.chunks_count
-                elif doc_result.action == "unchanged":
+                elif doc_result.action == DocumentAction.UNCHANGED:
                     result.documents_unchanged += 1
-                elif doc_result.action == "failed":
+                elif doc_result.action == DocumentAction.FAILED:
                     result.documents_failed += 1
                     logger.error(f"Failed to sync document {doc_info.doc_id}: {doc_result.error}")
 
-            deleted_doc_ids = self.state.get_document_ids_set(collection.id) - seen_doc_ids
-
-            if deleted_doc_ids:
-                logger.info(f"Deleting {len(deleted_doc_ids)} removed documents")
-                albert_ids_to_delete = self.state.delete_documents_by_ids(
-                    collection.id, deleted_doc_ids
-                )
-                for albert_id in albert_ids_to_delete:
-                    try:
-                        self.albert.delete_document(int(albert_id))
-                    except AlbertAPIError as e:
-                        logger.warning(f"Failed to delete document {albert_id} from Albert: {e}")
-                result.documents_deleted = len(deleted_doc_ids)
+            result.documents_deleted = self._delete_removed_documents(collection.id, seen_doc_ids)
 
             if remote_modified:
                 self.state.update_collection_last_modified(collection, remote_modified)
@@ -232,18 +229,16 @@ class SyncService:
             if self._has_document_changed(existing_doc.id, doc_info):
                 return self._replace_document(existing_doc, albert_collection_id, doc_info)
 
-            return DocumentSyncResult(doc_id=doc_info.doc_id, action="unchanged")
+            return DocumentSyncResult(doc_id=doc_info.doc_id, action=DocumentAction.UNCHANGED)
 
         except Exception as e:
             logger.warning(f"Failed to sync document {doc_info.doc_id}: {e}", exc_info=True)
-            return DocumentSyncResult(doc_id=doc_info.doc_id, action="failed", error=str(e))
+            return DocumentSyncResult(doc_id=doc_info.doc_id, action=DocumentAction.FAILED, error=str(e))
 
     def _has_document_changed(self, document_id: int, doc_info: DocumentInfo) -> bool:
         chunk_id_to_chunk_hash = self.state.get_document_chunk_hashes_by_chunk_id(document_id)
         if set(chunk_id_to_chunk_hash) != {c.chunk_id for c in doc_info.chunks}:
-            # True if chunks were added or deleted
             return True
-        # True if one chunk hash has changed
         return any(chunk_id_to_chunk_hash.get(c.chunk_id) != c.chunk_hash for c in doc_info.chunks)
 
     def _create_document(
@@ -262,20 +257,14 @@ class SyncService:
             albert_document_id=str(albert_doc_id),
         )
 
-        chunk_ids = self._upload_chunks(albert_doc_id, doc_info)
-        self.state.create_chunks_bulk(document.id, [
-            (chunk.chunk_id, chunk.chunk_hash, str(chunk_id))
-            for chunk, chunk_id in zip(doc_info.chunks, chunk_ids)
-        ])
-        self.state.commit()
+        self._upload_and_save_chunks(document, albert_doc_id, doc_info)
 
         logger.debug(f"Created document {doc_info.doc_id} with {len(doc_info.chunks)} chunks")
         return DocumentSyncResult(
-            doc_id=doc_info.doc_id, action="created", chunks_count=len(doc_info.chunks)
+            doc_id=doc_info.doc_id, action=DocumentAction.CREATED, chunks_count=len(doc_info.chunks)
         )
 
-    def _replace_document(self, document, albert_collection_id: int, doc_info: DocumentInfo) -> DocumentSyncResult:
-        """Replace a document in Albert and re-upload all its chunks."""
+    def _replace_document(self, document: Document, albert_collection_id: int, doc_info: DocumentInfo) -> DocumentSyncResult:
         if document.albert_document_id:
             try:
                 self.albert.delete_document(int(document.albert_document_id))
@@ -288,6 +277,14 @@ class SyncService:
         albert_doc_id = self.albert.create_document(albert_collection_id, doc_name)
         self.state.update_document_albert_id(document, str(albert_doc_id))
 
+        self._upload_and_save_chunks(document, albert_doc_id, doc_info)
+
+        logger.debug(f"Updated document {doc_info.doc_id} with {len(doc_info.chunks)} chunks")
+        return DocumentSyncResult(
+            doc_id=doc_info.doc_id, action=DocumentAction.UPDATED, chunks_count=len(doc_info.chunks)
+        )
+
+    def _upload_and_save_chunks(self, document: Document, albert_doc_id: int, doc_info: DocumentInfo) -> None:
         chunk_ids = self._upload_chunks(albert_doc_id, doc_info)
         self.state.create_chunks_bulk(document.id, [
             (chunk.chunk_id, chunk.chunk_hash, str(chunk_id))
@@ -295,10 +292,18 @@ class SyncService:
         ])
         self.state.commit()
 
-        logger.debug(f"Updated document {doc_info.doc_id} with {len(doc_info.chunks)} chunks")
-        return DocumentSyncResult(
-            doc_id=doc_info.doc_id, action="updated", chunks_count=len(doc_info.chunks)
-        )
+    def _delete_removed_documents(self, collection_id: int, seen_doc_ids: set[str]) -> int:
+        deleted_doc_ids = self.state.get_document_ids_set(collection_id) - seen_doc_ids
+        if not deleted_doc_ids:
+            return 0
+        logger.info(f"Deleting {len(deleted_doc_ids)} removed documents")
+        albert_ids_to_delete = self.state.delete_documents_by_ids(collection_id, deleted_doc_ids)
+        for albert_id in albert_ids_to_delete:
+            try:
+                self.albert.delete_document(int(albert_id))
+            except AlbertAPIError as e:
+                logger.warning(f"Failed to delete document {albert_id} from Albert: {e}")
+        return len(deleted_doc_ids)
 
     def _upload_chunks(self, albert_doc_id: int, doc_info: DocumentInfo) -> list[int]:
         chunks_data = [
