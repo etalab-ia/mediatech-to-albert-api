@@ -131,9 +131,9 @@ class AlbertClient:
         self._handle_response(response)
 
     def create_chunks(self, document_id: int, chunks: list[ChunkData]) -> list[int]:
-        """Upload chunks to a document (max 64 per request). Returns chunk IDs."""
+        """Upload chunks to a document. Returns chunk IDs."""
         if len(chunks) > 64:
-            raise ValueError("Maximum 64 chunks per request")
+            raise ValueError("Maximum 64 chunks per request (Albert API limit)")
 
         payload = {
             "chunks": [
