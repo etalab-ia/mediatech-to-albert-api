@@ -1,5 +1,3 @@
-"""HuggingFace dataset source for loading parquet data."""
-
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -15,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DatasetInfo:
-    """Information about a HuggingFace dataset."""
-
     name: str
     last_modified: datetime | None
     size_bytes: int | None = None
@@ -24,8 +20,6 @@ class DatasetInfo:
 
 @dataclass
 class ChunkInfo:
-    """Information about a single chunk from a dataset."""
-
     chunk_id: str
     chunk_index: int
     chunk_hash: str
@@ -35,22 +29,17 @@ class ChunkInfo:
 
 @dataclass
 class DocumentInfo:
-    """Information about a document (group of chunks)."""
-
     doc_id: str
     name: str | None
     chunks: list[ChunkInfo] = field(default_factory=list)
 
 
 class HuggingFaceSource:
-    """Source for loading datasets from HuggingFace."""
-
     def __init__(self, token: str | None = None):
         self.token = token
         self.api = HfApi(token=token)
 
     def get_chunk_count(self, dataset_name: str, config: str = "latest") -> int | None:
-        """Get total chunk count from dataset metadata."""
         try:
             disable_progress_bar()
             try:
@@ -65,7 +54,6 @@ class HuggingFaceSource:
         return None
 
     def get_dataset_info(self, dataset_name: str) -> DatasetInfo:
-        """Get metadata about a dataset."""
         try:
             info = self.api.dataset_info(dataset_name)
             return DatasetInfo(
@@ -78,8 +66,7 @@ class HuggingFaceSource:
             return DatasetInfo(name=dataset_name, last_modified=None)
 
     def _extract_metadata(self, row: dict[str, Any], dataset_name: str) -> dict[str, Any]:
-        """Extract relevant metadata fields from a dataset row."""
-        fields = DATASET_METADATA_FIELDS.get(dataset_name, ["title", "url"])
+        fields = DATASET_METADATA_FIELDS[dataset_name]
         metadata = {}
 
         for field_name in fields:
@@ -98,8 +85,7 @@ class HuggingFaceSource:
         return metadata
 
     def _get_document_name(self, row: dict[str, Any], dataset_name: str) -> str | None:
-        """Extract document name using the dataset-specific title field."""
-        field_name = DATASET_TITLE_FIELD.get(dataset_name, "title")
+        field_name = DATASET_TITLE_FIELD[dataset_name]
         value = row.get(field_name)
         if not value:
             return None
@@ -115,11 +101,7 @@ class HuggingFaceSource:
         config: str = "latest",
         split: str = "train",
     ) -> Iterator[DocumentInfo]:
-        """
-        Iterate over documents in a dataset, grouping chunks by doc_id.
-
-        Uses streaming to handle large datasets without loading everything into memory.
-        """
+        """Groups chunks by doc_id. Streams from HuggingFace to avoid loading full dataset."""
         logger.info(f"Loading dataset {dataset_name} (streaming mode)")
 
         try:
@@ -155,16 +137,29 @@ class HuggingFaceSource:
                     chunks=[],
                 )
 
+            chunk_id = row.get("chunk_id")
+            chunk_hash = row.get("chunk_xxh64")
+            content = row.get("chunk_text") or row.get("text")
+
+            if not chunk_id:
+                logger.warning(f"Row missing chunk_id for doc {doc_id}, skipping")
+                continue
+            if not chunk_hash:
+                logger.warning(f"Row missing chunk_xxh64 for chunk {chunk_id}, skipping")
+                continue
+            if not content:
+                logger.warning(f"Row missing content for chunk {chunk_id}, skipping")
+                continue
+
             chunk = ChunkInfo(
-                chunk_id=row.get("chunk_id", f"{doc_id}_{row.get('chunk_index', 0)}"),
-                chunk_index=row.get("chunk_index", 0),
-                chunk_hash=row.get("chunk_xxh64", ""),
-                content=row.get("chunk_text", row.get("text", "")),
+                chunk_id=chunk_id,
+                chunk_index=row["chunk_index"],
+                chunk_hash=chunk_hash,
+                content=content,
                 metadata=self._extract_metadata(row, dataset_name),
             )
 
-            if current_document is not None:
-                current_document.chunks.append(chunk)
+            current_document.chunks.append(chunk)
 
             chunk_count += 1
             if chunk_count % 1000 == 0:

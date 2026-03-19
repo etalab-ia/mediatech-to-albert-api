@@ -7,7 +7,7 @@ from datetime import datetime
 from .albert_client import AlbertClient, ChunkData, AlbertAPIError
 from .config import Settings
 from .huggingface_source import HuggingFaceSource, DocumentInfo
-from .models import CollectionStatus
+from .models import Collection, CollectionStatus
 from .state_store import StateStore
 
 logger = logging.getLogger(__name__)
@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DocumentSyncResult:
-    """Result of syncing a single document."""
-
     doc_id: str
     action: str  # "created", "updated", "unchanged", "deleted", "failed"
     chunks_count: int = 0
@@ -25,8 +23,6 @@ class DocumentSyncResult:
 
 @dataclass
 class DatasetSyncResult:
-    """Result of syncing a single dataset."""
-
     dataset_name: str
     success: bool
     documents_created: int = 0
@@ -41,16 +37,12 @@ class DatasetSyncResult:
 
 @dataclass
 class SyncResult:
-    """Result of the full sync operation."""
-
     success: bool
     datasets: list[DatasetSyncResult] = field(default_factory=list)
     total_duration_seconds: float = 0.0
 
 
 class SyncService:
-    """Orchestrator for synchronizing HuggingFace datasets to Albert API."""
-
     def __init__(
         self,
         settings: Settings,
@@ -64,7 +56,6 @@ class SyncService:
         self.hf = hf_source
 
     def sync_all(self, datasets: list[str]) -> SyncResult:
-        """Sync all configured datasets."""
         start_time = datetime.now()
         results: list[DatasetSyncResult] = []
         all_success = True
@@ -87,7 +78,6 @@ class SyncService:
         return SyncResult(success=all_success, datasets=results, total_duration_seconds=total_duration)
 
     def sync_dataset(self, dataset_name: str) -> DatasetSyncResult:
-        """Sync a single dataset."""
         start_time = datetime.now()
         result = DatasetSyncResult(dataset_name=dataset_name, success=True)
         collection = None
@@ -99,49 +89,33 @@ class SyncService:
                 self.state.commit()
                 logger.info(f"Created new collection record for {dataset_name}")
 
-            # Check if dataset has changed
             dataset_info = self.hf.get_dataset_info(dataset_name)
             remote_modified = (
                 dataset_info.last_modified.isoformat() if dataset_info.last_modified else None
             )
 
-            dataset_unchanged = (
-                collection.last_modified
-                and remote_modified
-                and collection.last_modified >= remote_modified
-            )
-
             collection_name = self._make_collection_name(dataset_name)
 
-            if dataset_unchanged:
-                if collection.albert_collection_id:
-                    # Verify Albert collection still exists before skipping
-                    existing = self.albert.get_collection_by_name(collection_name)
-                    if existing is not None:
-                        logger.info(f"Dataset {dataset_name} unchanged, skipping")
-                        result.duration_seconds = (datetime.now() - start_time).total_seconds()
-                        return result
-                    # Albert collection was deleted externally — force re-sync
-                    logger.warning(
-                        f"Albert collection '{collection_name}' was deleted externally, forcing re-sync"
-                    )
-                    self.state.reset_collection_documents(collection.id)
-                    collection.albert_collection_id = None
-                    self.state.commit()
-                # else: no Albert collection yet, fall through to create it
+            if self._is_dataset_unchanged(collection, remote_modified):
+                existing = self.albert.get_collection_by_name(collection_name)
+                if existing is not None:
+                    logger.info(f"Dataset {dataset_name} unchanged, skipping")
+                    result.duration_seconds = (datetime.now() - start_time).total_seconds()
+                    return result
+                logger.warning(
+                    f"Albert collection '{collection_name}' was deleted externally, forcing re-sync"
+                )
+                # _ensure_albert_collection_id will handle the state reset below
 
             logger.info(
-                f"Dataset {dataset_name} changed: "
-                f"local={collection.last_modified}, remote={remote_modified}"
+                f"Syncing {dataset_name}: local={collection.last_modified}, remote={remote_modified}"
             )
 
             self.state.update_collection_status(collection, CollectionStatus.SYNCING)
             self.state.commit()
 
-            # Resolve Albert collection
-            albert_collection_id = self._resolve_albert_collection(collection, collection_name)
+            albert_collection_id = self._ensure_albert_collection_id(collection, collection_name)
 
-            # Track which documents we see in this sync
             seen_doc_ids: set[str] = set()
 
             for doc_info in self.hf.iter_documents(dataset_name):
@@ -160,9 +134,7 @@ class SyncService:
                     result.documents_failed += 1
                     logger.error(f"Failed to sync document {doc_info.doc_id}: {doc_result.error}")
 
-            # Handle deletions
-            existing_doc_ids = self.state.get_document_ids_set(collection.id)
-            deleted_doc_ids = existing_doc_ids - seen_doc_ids
+            deleted_doc_ids = self.state.get_document_ids_set(collection.id) - seen_doc_ids
 
             if deleted_doc_ids:
                 logger.info(f"Deleting {len(deleted_doc_ids)} removed documents")
@@ -198,33 +170,42 @@ class SyncService:
     def _make_collection_name(self, dataset_name: str) -> str:
         return dataset_name.split("/")[-1]
 
-    def _resolve_albert_collection(self, collection, collection_name: str) -> int:
+    def _is_dataset_unchanged(self, collection: Collection, remote_modified: str | None) -> bool:
+        """Return True if the local state is at least as recent as the remote dataset."""
+        return bool(
+            collection.last_modified
+            and remote_modified
+            and collection.last_modified >= remote_modified
+            and collection.albert_collection_id
+        )
+
+    def _ensure_albert_collection_id(self, collection: Collection, collection_name: str) -> int:
         """
-        Ensure an Albert collection exists and return its ID.
+        Return the Albert collection ID, creating one if needed.
 
         Handles three cases:
-        - Normal: local albert_collection_id set and collection exists in Albert → use it
-        - External deletion: local albert_collection_id set but collection gone from Albert
-          → reset local document state, create new collection
-        - state.db lost: no local albert_collection_id but collection exists in Albert
-          → delete Albert collection to avoid duplicates, create new one
+        - Normal: local state has an ID and the collection exists in Albert → return it
+        - External deletion: local state has an ID but Albert collection is gone
+          → reset local document state, create a new collection
+        - Lost state.db: no local ID but collection exists in Albert
+          → delete the orphaned Albert collection (to avoid duplicates), create a new one
         """
         existing_albert = self.albert.get_collection_by_name(collection_name)
 
         if collection.albert_collection_id:
-            if existing_albert is None:
-                logger.warning(
-                    f"Albert collection '{collection_name}' no longer exists, resetting local state"
-                )
-                self.state.reset_collection_documents(collection.id)
-                collection.albert_collection_id = None
-                self.state.commit()
-            else:
+            if existing_albert is not None:
                 return int(collection.albert_collection_id)
+            # Albert collection was deleted externally — reset local state and recreate
+            logger.warning(
+                f"Albert collection '{collection_name}' no longer exists, resetting local state"
+            )
+            self.state.reset_collection_documents(collection.id)
+            collection.albert_collection_id = None
+            self.state.commit()
 
-        # Need to create a new Albert collection
+        # No local albert_collection_id — need to create one
         if existing_albert:
-            # state.db was lost — delete existing Albert collection to avoid duplicates
+            # state.db was lost — delete orphaned Albert collection to avoid duplicates
             logger.warning(
                 f"Found existing Albert collection '{collection_name}' but no local state "
                 f"(state.db may have been lost). Deleting and recreating."
@@ -248,26 +229,22 @@ class SyncService:
             if existing_doc is None:
                 return self._create_document(collection_id, albert_collection_id, doc_info)
 
-            if self._document_needs_update(existing_doc.id, doc_info):
-                return self._update_document(existing_doc, albert_collection_id, doc_info)
+            if self._has_document_changed(existing_doc.id, doc_info):
+                return self._replace_document(existing_doc, albert_collection_id, doc_info)
 
             return DocumentSyncResult(doc_id=doc_info.doc_id, action="unchanged")
 
         except Exception as e:
+            logger.warning(f"Failed to sync document {doc_info.doc_id}: {e}", exc_info=True)
             return DocumentSyncResult(doc_id=doc_info.doc_id, action="failed", error=str(e))
 
-    def _document_needs_update(self, document_id: int, doc_info: DocumentInfo) -> bool:
-        existing_hashes = self.state.get_chunk_hashes(document_id)
-
-        for chunk in doc_info.chunks:
-            if existing_hashes.get(chunk.chunk_id) != chunk.chunk_hash:
-                return True
-
-        new_chunk_ids = {c.chunk_id for c in doc_info.chunks}
-        if set(existing_hashes) != new_chunk_ids:
+    def _has_document_changed(self, document_id: int, doc_info: DocumentInfo) -> bool:
+        chunk_id_to_chunk_hash = self.state.get_document_chunk_hashes_by_chunk_id(document_id)
+        if set(chunk_id_to_chunk_hash) != {c.chunk_id for c in doc_info.chunks}:
+            # True if chunks were added or deleted
             return True
-
-        return False
+        # True if one chunk hash has changed
+        return any(chunk_id_to_chunk_hash.get(c.chunk_id) != c.chunk_hash for c in doc_info.chunks)
 
     def _create_document(
         self,
@@ -286,11 +263,10 @@ class SyncService:
         )
 
         chunk_ids = self._upload_chunks(albert_doc_id, doc_info)
-        chunks_data = [
-            (chunk.chunk_id, chunk.chunk_hash, str(chunk_id) if chunk_id else None)
+        self.state.create_chunks_bulk(document.id, [
+            (chunk.chunk_id, chunk.chunk_hash, str(chunk_id))
             for chunk, chunk_id in zip(doc_info.chunks, chunk_ids)
-        ]
-        self.state.create_chunks_bulk(document.id, chunks_data)
+        ])
         self.state.commit()
 
         logger.debug(f"Created document {doc_info.doc_id} with {len(doc_info.chunks)} chunks")
@@ -298,7 +274,8 @@ class SyncService:
             doc_id=doc_info.doc_id, action="created", chunks_count=len(doc_info.chunks)
         )
 
-    def _update_document(self, document, albert_collection_id: int, doc_info: DocumentInfo) -> DocumentSyncResult:
+    def _replace_document(self, document, albert_collection_id: int, doc_info: DocumentInfo) -> DocumentSyncResult:
+        """Replace a document in Albert and re-upload all its chunks."""
         if document.albert_document_id:
             try:
                 self.albert.delete_document(int(document.albert_document_id))
@@ -312,11 +289,10 @@ class SyncService:
         self.state.update_document_albert_id(document, str(albert_doc_id))
 
         chunk_ids = self._upload_chunks(albert_doc_id, doc_info)
-        chunks_data = [
-            (chunk.chunk_id, chunk.chunk_hash, str(chunk_id) if chunk_id else None)
+        self.state.create_chunks_bulk(document.id, [
+            (chunk.chunk_id, chunk.chunk_hash, str(chunk_id))
             for chunk, chunk_id in zip(doc_info.chunks, chunk_ids)
-        ]
-        self.state.create_chunks_bulk(document.id, chunks_data)
+        ])
         self.state.commit()
 
         logger.debug(f"Updated document {doc_info.doc_id} with {len(doc_info.chunks)} chunks")
@@ -326,7 +302,15 @@ class SyncService:
 
     def _upload_chunks(self, albert_doc_id: int, doc_info: DocumentInfo) -> list[int]:
         chunks_data = [
-            ChunkData(content=chunk.content, metadata=chunk.metadata or None)
+            ChunkData(
+                content=chunk.content,
+                metadata={
+                    **(chunk.metadata or {}),
+                    "_doc_id": doc_info.doc_id,
+                    "_chunk_id": chunk.chunk_id,
+                    "_chunk_hash": chunk.chunk_hash,
+                },
+            )
             for chunk in doc_info.chunks
         ]
         return self.albert.upload_chunks_batched(

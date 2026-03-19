@@ -1,5 +1,3 @@
-"""State store for tracking sync state in SQLite."""
-
 import logging
 from datetime import datetime
 
@@ -91,16 +89,15 @@ class StateStore:
         """Return (doc_count, chunk_count) for a collection."""
         doc_count = self.session.execute(
             select(func.count(Document.id)).where(Document.collection_id == collection_id)
-        ).scalar() or 0
+        ).scalar()
         chunk_count = self.session.execute(
             select(func.count(Chunk.id))
             .join(Document, Chunk.document_id == Document.id)
             .where(Document.collection_id == collection_id)
-        ).scalar() or 0
+        ).scalar()
         return doc_count, chunk_count
 
     def get_document_ids_set(self, collection_id: int) -> set[str]:
-        """Get set of all doc_id_source values in a collection (for deletion detection)."""
         stmt = select(Document.doc_id_source).where(Document.collection_id == collection_id)
         return set(self.session.execute(stmt).scalars().all())
 
@@ -153,8 +150,7 @@ class StateStore:
 
     # --- Chunks ---
 
-    def get_chunk_hashes(self, document_id: int) -> dict[str, str]:
-        """Get chunk hashes for a document: {chunk_id_source: chunk_hash}."""
+    def get_document_chunk_hashes_by_chunk_id(self, document_id: int) -> dict[str, str]:
         stmt = select(Chunk.chunk_id_source, Chunk.chunk_hash).where(
             Chunk.document_id == document_id
         )

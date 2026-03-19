@@ -1,5 +1,3 @@
-"""HTTP client for the Albert API."""
-
 import logging
 import time
 from dataclasses import dataclass
@@ -26,8 +24,6 @@ class RateLimiter:
 
 
 class AlbertAPIError(Exception):
-    """Exception raised when Albert API returns an error."""
-
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code
         self.message = message
@@ -36,8 +32,6 @@ class AlbertAPIError(Exception):
 
 @dataclass
 class CollectionInfo:
-    """Information about an Albert collection."""
-
     id: int
     name: str
     documents_count: int = 0
@@ -45,15 +39,11 @@ class CollectionInfo:
 
 @dataclass
 class ChunkData:
-    """Data for a chunk to upload."""
-
     content: str
     metadata: dict[str, Any] | None = None
 
 
 class AlbertClient:
-    """HTTP client for interacting with the Albert API."""
-
     def __init__(self, base_url: str, api_token: str, timeout: float = 60.0, requests_per_second: float = 2.0):
         self.base_url = base_url.rstrip("/")
         self._json_headers = {"Content-Type": "application/json"}
@@ -160,7 +150,9 @@ class AlbertClient:
             headers=self._json_headers,
         )
         data = self._handle_response(response)
-        return data.get("ids", [])
+        if "ids" not in data:
+            raise AlbertAPIError(200, "Missing 'ids' in response")
+        return data["ids"]
 
     def upload_chunks_batched(
         self,
@@ -168,7 +160,6 @@ class AlbertClient:
         chunks: list[ChunkData],
         batch_size: int = 64,
     ) -> list[int]:
-        """Upload chunks in batches with rate limiting. Returns all created chunk IDs."""
         all_ids: list[int] = []
 
         for i in range(0, len(chunks), batch_size):
@@ -187,7 +178,6 @@ class AlbertClient:
         k: int = 6,
         method: str = "semantic",
     ) -> list[dict]:
-        """Perform semantic search across specified collections. Returns list of results."""
         payload = {
             "prompt": prompt,
             "collections": collection_ids,

@@ -122,8 +122,10 @@ def main() -> int:
     setup_logging(log_level)
     logger = logging.getLogger(__name__)
 
-    with StateStore(settings.sqlite_path) as state_store:
-        with AlbertClient(settings.albert_api_url, settings.albert_api_token, requests_per_second=settings.requests_per_second) as albert_client:
+    with (
+        StateStore(settings.sqlite_path) as state_store,
+        AlbertClient(settings.albert_api_url, settings.albert_api_token, requests_per_second=settings.requests_per_second) as albert_client,
+    ):
             hf_source = HuggingFaceSource(settings.huggingface_token)
 
             if args.status:
@@ -131,12 +133,12 @@ def main() -> int:
                 return 0
 
             logger.info("Starting Mediatech to Albert API sync")
-            logger.info(f"Albert API: {settings.albert_api_url}")
+            logger.info(f"Albert API url: {settings.albert_api_url}")
 
             if args.dataset:
                 for ds in args.dataset:
                     if ds not in DATASETS:
-                        logger.warning(f"Dataset {ds} not in configured list, will try anyway")
+                        raise ValueError(f"Unknown dataset `{ds}`. Configured datasets: {DATASETS}")
                 datasets_to_sync = args.dataset
             else:
                 datasets_to_sync = DATASETS

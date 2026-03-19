@@ -1,5 +1,3 @@
-"""Tchap (Matrix) notification sender."""
-
 import logging
 
 import httpx
@@ -41,7 +39,6 @@ class TchapNotifier:
 
     @staticmethod
     def format_sync_result(result: SyncResult, albert_api_url: str = "") -> str:
-        """Format a SyncResult into a human-readable message."""
         env = TchapNotifier._env_from_url(albert_api_url)
         status = "✅ Mediatech sync success" if result.success else "❌ Mediatech sync errors"
         lines = [f"{status} [{env}]", ""]

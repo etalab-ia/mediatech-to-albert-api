@@ -1,12 +1,8 @@
-"""Configuration module for Mediatech to Albert API sync."""
-
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
-
     # Albert API
     albert_api_url: str = Field(
         default="https://albert.api.dev.etalab.gouv.fr",

@@ -1,5 +1,3 @@
-"""SQLAlchemy models for tracking sync state."""
-
 from datetime import datetime
 from enum import Enum
 
@@ -22,14 +20,10 @@ from sqlalchemy.orm import (
 
 
 class Base(DeclarativeBase):
-    """Base class for all models."""
-
     pass
 
 
 class CollectionStatus(str, Enum):
-    """Status of a collection sync."""
-
     IDLE = "idle"
     SYNCING = "syncing"
     SUCCESS = "success"
@@ -56,14 +50,12 @@ class Collection(Base):
     # Last modification date from HuggingFace (ISO format)
     last_modified: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    # Sync status
     status: Mapped[str] = mapped_column(
         String(20),
         default=CollectionStatus.IDLE.value,
         nullable=False,
     )
 
-    # Error message if failed
     error_message: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -79,7 +71,6 @@ class Collection(Base):
         nullable=False,
     )
 
-    # Relationships
     documents: Mapped[list["Document"]] = relationship(
         back_populates="collection",
         cascade="all, delete-orphan",
@@ -93,7 +84,7 @@ class Document(Base):
     """
     Represents a document within a collection.
 
-    Maps doc_id from parquet to Albert document ID.
+    Maps doc_id from HF parquet to Albert document ID.
     """
 
     __tablename__ = "documents"
@@ -127,7 +118,6 @@ class Document(Base):
         nullable=False,
     )
 
-    # Relationships
     collection: Mapped["Collection"] = relationship(back_populates="documents")
     chunks: Mapped[list["Chunk"]] = relationship(
         back_populates="document",
@@ -178,7 +168,6 @@ class Chunk(Base):
         nullable=False,
     )
 
-    # Relationships
     document: Mapped["Document"] = relationship(back_populates="chunks")
 
     __table_args__ = (
@@ -195,7 +184,6 @@ class Chunk(Base):
 
 
 def init_db(sqlite_path: str) -> Session:
-    """Initialize the database and return a session."""
     engine = create_engine(f"sqlite:///{sqlite_path}", echo=False)
     Base.metadata.create_all(engine)
     return Session(engine)
