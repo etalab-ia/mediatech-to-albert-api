@@ -75,6 +75,8 @@ class HuggingFaceSource:
             value = row[field_name]
             if isinstance(value, datetime):
                 value = value.isoformat()
+            if isinstance(value, list):
+                value = str(value)
             if isinstance(value, str) and not value.strip():
                 continue
             if isinstance(value, str) and len(value) > 255:

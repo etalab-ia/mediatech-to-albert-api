@@ -74,7 +74,7 @@ DATASETS = [
 
 # Field used as document name for each dataset
 DATASET_TITLE_FIELD: dict[str, str] = {
-    "AgentPublic/legi": "title",
+    "AgentPublic/legi": "full_title",
     "AgentPublic/travail-emploi": "title",
     "AgentPublic/service-public": "title",
     "AgentPublic/dole": "title",
@@ -87,54 +87,63 @@ DATASET_TITLE_FIELD: dict[str, str] = {
 # Metadata fields to extract from each dataset
 DATASET_METADATA_FIELDS: dict[str, list[str]] = {
     "AgentPublic/legi": [
-        "title",
-        "full_title",
-        "nature",
         "category",
         "ministry",
         "status",
         "start_date",
         "end_date",
         "number",
-        "url",
     ],
     "AgentPublic/service-public": [
         "title",
         "audience",
         "theme",
-        "surtitle",
         "url",
-        "introduction",
     ],
     "AgentPublic/travail-emploi": [
         "title",
+        "date"
         "url",
     ],
     "AgentPublic/local-administrations-directory": [
         "name",
         "types",
-        "mission_description",
-        "additional_information",
+        "siret",
+        "siren",
+        "mails",
+        "modification_date",
         "directory_url",
     ],
     "AgentPublic/state-administrations-directory": [
         "name",
         "types",
-        "mission_description",
-        "additional_information",
+        "siret",
+        "siren",
+        "mails",
+        "modification_date",
         "directory_url",
     ],
     "AgentPublic/dole": [
         "title",
-        "url",
+        "category",
+        "number",
+        "article_number",
+        "creation_date",
     ],
     "AgentPublic/constit": [
         "title",
-        "url",
+        "nature",
+        "solution",
+        "number",
+        "decision_date",
     ],
     "AgentPublic/cnil": [
         "title",
-        "url",
+        "nature",
+        "nature_delib",
+        "status",
+        "number",
+        "date"
     ],
 }
 
