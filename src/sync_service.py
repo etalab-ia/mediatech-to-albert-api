@@ -145,7 +145,7 @@ class SyncService:
 
             result.documents_deleted = self._delete_removed_documents(collection.id, seen_doc_ids)
 
-            if remote_modified:
+            if remote_modified and result.documents_failed == 0:
                 self.state.update_collection_last_modified(collection, remote_modified)
             self.state.update_collection_status(collection, CollectionStatus.SUCCESS)
             self.state.commit()
