@@ -21,7 +21,6 @@ class DatasetInfo:
 @dataclass
 class ChunkInfo:
     chunk_id: str
-    chunk_index: int
     chunk_hash: str
     content: str
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -112,7 +111,6 @@ class HuggingFaceSource:
 
         return ChunkInfo(
             chunk_id=chunk_id,
-            chunk_index=row["chunk_index"],
             chunk_hash=chunk_hash,
             content=content,
             metadata=self._extract_metadata(row, dataset_name),

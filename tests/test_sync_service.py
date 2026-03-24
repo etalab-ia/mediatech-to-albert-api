@@ -23,8 +23,8 @@ def make_doc(chunks: list[tuple[str, str]]) -> DocumentInfo:
         doc_id="doc1",
         name="Test Doc",
         chunks=[
-            ChunkInfo(chunk_id=cid, chunk_index=i, chunk_hash=chash, content="text")
-            for i, (cid, chash) in enumerate(chunks)
+            ChunkInfo(chunk_id=cid, chunk_hash=chash, content="text")
+            for cid, chash in chunks
         ],
     )
 
