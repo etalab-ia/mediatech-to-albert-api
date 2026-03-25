@@ -94,12 +94,12 @@ class AlbertClient:
                 )
         return None
 
-    def create_collection(self, name: str) -> int:
+    def create_collection(self, name: str, description: str) -> int:
         """Create a new public collection. Returns the collection ID."""
         logger.info(f"Creating collection: {name}")
         response = self.client.post(
             "/v1/collections",
-            json={"name": name, "visibility": "public", "owner": "albert.api@numerique.gouv.fr"},
+            json={"name": name, "description": description, "visibility": "public", "owner": "albert.api@numerique.gouv.fr"},
         )
         data = self._handle_response(response)
         collection_id = data["id"]
@@ -161,6 +161,10 @@ class AlbertClient:
 
         for i in range(0, len(chunks), batch_size):
             self._limiter.wait()
+            # Temporary hack to prevent the current bug in ElasticSearch where one batch uploaded immediately after the
+            # first one can override some of its values
+            if i > 0:
+                time.sleep(1)
             batch = chunks[i : i + batch_size]
             ids = self.create_chunks(document_id, batch)
             all_ids.extend(ids)

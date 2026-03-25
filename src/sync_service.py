@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 
 from .albert_client import AlbertClient, ChunkData, AlbertAPIError
-from .config import Settings
+from .config import Settings, DATASET_COLLECTION_NAMES, DATASET_COLLECTION_DESCRIPTIONS
 from .huggingface_source import HuggingFaceSource, DocumentInfo
 from .models import Collection, CollectionStatus, Document
 from .state_store import StateStore
@@ -123,7 +123,7 @@ class SyncService:
             self.state.update_collection_status(collection, CollectionStatus.SYNCING)
             self.state.commit()
 
-            albert_collection_id = self._ensure_albert_collection_id(collection, collection_name)
+            albert_collection_id = self._ensure_albert_collection_id(collection, dataset_name, collection_name)
 
             seen_doc_ids: set[str] = set()
 
@@ -165,7 +165,7 @@ class SyncService:
         return result
 
     def _make_collection_name(self, dataset_name: str) -> str:
-        return dataset_name.split("/")[-1]
+        return DATASET_COLLECTION_NAMES[dataset_name]
 
     def _is_dataset_unchanged(self, collection: Collection, remote_modified: str | None) -> bool:
         """Return True if the local state is at least as recent as the remote dataset."""
@@ -176,7 +176,7 @@ class SyncService:
             and collection.albert_collection_id
         )
 
-    def _ensure_albert_collection_id(self, collection: Collection, collection_name: str) -> int:
+    def _ensure_albert_collection_id(self, collection: Collection, dataset_name: str, collection_name: str) -> int:
         """
         Return the Albert collection ID, creating one if needed.
 
@@ -209,7 +209,10 @@ class SyncService:
             )
             self.albert.delete_collection(existing_albert.id)
 
-        albert_id = self.albert.create_collection(name=collection_name)
+        albert_id = self.albert.create_collection(
+            name=collection_name,
+            description=DATASET_COLLECTION_DESCRIPTIONS[dataset_name],
+        )
         self.state.set_collection_albert_id(collection, str(albert_id))
         self.state.commit()
         return albert_id

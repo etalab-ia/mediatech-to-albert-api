@@ -1,0 +1,54 @@
+[project]
+name = "mediatech-to-albert-api"
+version = "0.1.0"
+description = "Syncs HuggingFace datasets (Mediatech parquet files) into Albert API public collections for RAG"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=2.18.0",
+    "httpx>=0.27.0",
+    "huggingface-hub>=0.21.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "sqlalchemy>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=4.0.0",
+    "pytest>=8.0.0",
+    "ruff>=0.4.0",
+]
+
+[tool.ruff]
+line-length = 150
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long
+    "N806",  # force lowercase
+    "W291",  # trailing whitespace
+]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+known-first-party = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+markers = [
+    "integration: marks tests as integration tests (require live API)",
+]

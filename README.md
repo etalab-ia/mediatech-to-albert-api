@@ -30,7 +30,7 @@ The datasets currently synchronized are :
 ## Setup
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
 cp .env.example .env
 # Fill in ALBERT_API_TOKEN and HUGGINGFACE_TOKEN
 ```
