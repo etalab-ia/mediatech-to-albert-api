@@ -28,6 +28,17 @@ class TchapNotifier:
             logger.warning(f"Failed to send Tchap notification: {e}")
 
     @staticmethod
+    def _format_duration(seconds: float) -> str:
+        s = int(seconds)
+        if s < 60:
+            return f"{s}s"
+        m, s = divmod(s, 60)
+        if m < 60:
+            return f"{m}m{s:02d}s"
+        h, m = divmod(m, 60)
+        return f"{h}h{m:02d}m{s:02d}s"
+
+    @staticmethod
     def _env_from_url(albert_api_url: str) -> str:
         if "staging" in albert_api_url:
             return "staging"
@@ -49,18 +60,18 @@ class TchapNotifier:
             else:
                 parts = []
                 if ds.documents_created:
-                    parts.append(f"+{ds.documents_created}")
+                    parts.append(f"+{ds.documents_created:,} docs created")
                 if ds.documents_updated:
-                    parts.append(f"~{ds.documents_updated}")
+                    parts.append(f"~{ds.documents_updated:,} docs updated")
                 if ds.documents_deleted:
-                    parts.append(f"-{ds.documents_deleted}")
+                    parts.append(f"-{ds.documents_deleted:,} docs deleted")
                 if ds.documents_unchanged:
-                    parts.append(f"={ds.documents_unchanged} unchanged")
-                summary = ", ".join(parts) if parts else "already up-to date, nothing to do"
+                    parts.append(f"{ds.documents_unchanged:,} docs unchanged")
+                summary = ", ".join(parts) if parts else "already up-to-date, nothing to do"
                 lines.append(
                     f"• {ds.dataset_name}: {summary}"
-                    f" ({ds.chunks_uploaded:,} chunks, {ds.duration_seconds:.0f}s)"
+                    f" ({ds.chunks_uploaded:,} chunks uploaded, {TchapNotifier._format_duration(ds.duration_seconds)})"
                 )
 
-        lines.append(f"\nTotal duration : {result.total_duration_seconds:.0f}s")
+        lines.append(f"\nTotal duration: {TchapNotifier._format_duration(result.total_duration_seconds)}")
         return "\n".join(lines)

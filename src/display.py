@@ -10,11 +10,12 @@ from .sync_service import SyncResult
 
 @dataclass
 class _DatasetStatusRow:
-    short_name: str
+    collection_name: str
     last_sync: str
-    hf_str: str
-    local_str: str
-    albert_str: str
+    hf_chunks: int
+    local_chunks: int
+    local_docs: int
+    albert_docs: int
     status_icon: str
 
 
@@ -32,27 +33,31 @@ def _collect_status_rows(
 
         last_sync = collection.last_modified[:16] if collection and collection.last_modified else "never"
 
-        if collection:
-            doc_count, chunk_count = state_store.get_collection_counts(collection.id)
-            local_str = f"{doc_count:,} ({chunk_count:,})"
-        else:
-            local_str = "0 (0)"
-
         hf_chunks = hf_source.get_chunk_count(dataset_name)
-        hf_str = f"{hf_chunks:,}" if hf_chunks is not None else "?"
+
+        if collection:
+            local_docs, local_chunks = state_store.get_collection_counts(collection.id)
+        else:
+            local_docs, local_chunks = 0, 0
 
         albert_info = albert_client.get_collection_by_name(collection_name)
-        albert_str = f"{albert_info.documents_count:,}" if albert_info else "0"
+        albert_docs = albert_info.documents_count if albert_info else 0
 
-        status_icon = "🟢" if (collection and collection.status == CollectionStatus.SUCCESS.value) else "🟠"
+        if collection and collection.status == CollectionStatus.FAILED.value:
+            status_icon = "🔴"
+        elif local_chunks == hf_chunks and local_docs == albert_docs:
+            status_icon = "🟢"
+        else:
+            status_icon = "🟠"
 
         rows.append(
             _DatasetStatusRow(
-                short_name=collection_name,
+                collection_name=collection_name,
                 last_sync=last_sync,
-                hf_str=hf_str,
-                local_str=local_str,
-                albert_str=albert_str,
+                hf_chunks=hf_chunks,
+                local_chunks=local_chunks,
+                local_docs=local_docs,
+                albert_docs=albert_docs,
                 status_icon=status_icon,
             )
         )
@@ -67,10 +72,11 @@ def print_status(
 ) -> None:
     rows = _collect_status_rows(state_store, albert_client, hf_source)
 
-    name_w, sync_w, hf_w, local_w, albert_w = 48, 16, 12, 22, 12
+    name_w, sync_w, hf_w, lchunk_w, ldoc_w, albert_w = 48, 16, 12, 14, 12, 12
 
     header = (
-        f"{'Dataset':<{name_w}} {'Last sync':<{sync_w}}" f" {'HF chunks':>{hf_w}} {'Local docs (chunks)':<{local_w}} {'Albert docs':>{albert_w}} St."
+        f"{'Dataset':<{name_w}} {'Last sync':<{sync_w}}"
+        f" {'HF chunks':>{hf_w}} {'Local chunks':>{lchunk_w}} {'Local docs':>{ldoc_w}} {'Albert docs':>{albert_w}} St."
     )
     sep = "-" * len(header)
 
@@ -81,8 +87,8 @@ def print_status(
 
     for row in rows:
         print(
-            f"{row.short_name:<{name_w}} {row.last_sync:<{sync_w}}"
-            f" {row.hf_str:>{hf_w}} {row.local_str:<{local_w}} {row.albert_str:>{albert_w}} {row.status_icon}"
+            f"{row.collection_name:<{name_w}} {row.last_sync:<{sync_w}}"
+            f" {row.hf_chunks:>{hf_w},} {row.local_chunks:>{lchunk_w},} {row.local_docs:>{ldoc_w},} {row.albert_docs:>{albert_w},} {row.status_icon}"
         )
 
     print(sep)
