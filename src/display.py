@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from .albert_client import AlbertClient
-from .config import DATASETS
+from .config import DATASET_COLLECTION_NAMES, DATASETS
 from .huggingface_source import HuggingFaceSource
 from .models import CollectionStatus
 from .state_store import StateStore
@@ -27,7 +27,7 @@ def _collect_status_rows(
     rows = []
 
     for dataset_name in DATASETS:
-        short_name = dataset_name.split("/")[-1]
+        collection_name = DATASET_COLLECTION_NAMES[dataset_name]
         collection = coll_by_name.get(dataset_name)
 
         last_sync = collection.last_modified[:16] if collection and collection.last_modified else "never"
@@ -41,19 +41,21 @@ def _collect_status_rows(
         hf_chunks = hf_source.get_chunk_count(dataset_name)
         hf_str = f"{hf_chunks:,}" if hf_chunks is not None else "?"
 
-        albert_info = albert_client.get_collection_by_name(short_name)
+        albert_info = albert_client.get_collection_by_name(collection_name)
         albert_str = f"{albert_info.documents_count:,}" if albert_info else "0"
 
         status_icon = "🟢" if (collection and collection.status == CollectionStatus.SUCCESS.value) else "🟠"
 
-        rows.append(_DatasetStatusRow(
-            short_name=short_name,
-            last_sync=last_sync,
-            hf_str=hf_str,
-            local_str=local_str,
-            albert_str=albert_str,
-            status_icon=status_icon,
-        ))
+        rows.append(
+            _DatasetStatusRow(
+                short_name=collection_name,
+                last_sync=last_sync,
+                hf_str=hf_str,
+                local_str=local_str,
+                albert_str=albert_str,
+                status_icon=status_icon,
+            )
+        )
 
     return rows
 
@@ -65,11 +67,10 @@ def print_status(
 ) -> None:
     rows = _collect_status_rows(state_store, albert_client, hf_source)
 
-    name_w, sync_w, hf_w, local_w, albert_w = 33, 16, 12, 22, 12
+    name_w, sync_w, hf_w, local_w, albert_w = 48, 16, 12, 22, 12
 
     header = (
-        f"{'Dataset':<{name_w}} {'Last sync':<{sync_w}}"
-        f" {'HF chunks':>{hf_w}} {'Local docs (chunks)':<{local_w}} {'Albert docs':>{albert_w}} St."
+        f"{'Dataset':<{name_w}} {'Last sync':<{sync_w}}" f" {'HF chunks':>{hf_w}} {'Local docs (chunks)':<{local_w}} {'Albert docs':>{albert_w}} St."
     )
     sep = "-" * len(header)
 
