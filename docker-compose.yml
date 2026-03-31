@@ -1,0 +1,11 @@
+services:
+  sync:
+    build: .
+    env_file: .env
+    environment:
+      - SQLITE_PATH=/data/state.db
+    volumes:
+      - state:/data
+
+volumes:
+  state:
