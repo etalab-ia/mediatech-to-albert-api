@@ -1,19 +1,19 @@
-import logging
 from datetime import datetime
+import logging
 
-from sqlalchemy import create_engine, select, delete, func
+from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.orm import Session
 
-from .models import Base, Collection, Document, Chunk, CollectionStatus
+from .models import Base, Chunk, Collection, CollectionStatus, Document
 
 logger = logging.getLogger(__name__)
 
 
 class StateStore:
-    """Repository for managing sync state in SQLite."""
+    """Repository for managing sync state."""
 
-    def __init__(self, sqlite_path: str):
-        self.engine = create_engine(f"sqlite:///{sqlite_path}", echo=False)
+    def __init__(self, database_url: str):
+        self.engine = create_engine(database_url, echo=False)
         Base.metadata.create_all(self.engine)
         self._session: Session | None = None
 
@@ -86,13 +86,9 @@ class StateStore:
         return self.session.execute(stmt).scalar_one_or_none()
 
     def get_collection_counts(self, collection_id: int) -> tuple[int, int]:
-        doc_count = self.session.execute(
-            select(func.count(Document.id)).where(Document.collection_id == collection_id)
-        ).scalar()
+        doc_count = self.session.execute(select(func.count(Document.id)).where(Document.collection_id == collection_id)).scalar()
         chunk_count = self.session.execute(
-            select(func.count(Chunk.id))
-            .join(Document, Chunk.document_id == Document.id)
-            .where(Document.collection_id == collection_id)
+            select(func.count(Chunk.id)).join(Document, Chunk.document_id == Document.id).where(Document.collection_id == collection_id)
         ).scalar()
         return doc_count, chunk_count
 
@@ -150,9 +146,7 @@ class StateStore:
     # --- Chunks ---
 
     def get_document_chunk_hashes_by_chunk_id(self, document_id: int) -> dict[str, str]:
-        stmt = select(Chunk.chunk_id_source, Chunk.chunk_hash).where(
-            Chunk.document_id == document_id
-        )
+        stmt = select(Chunk.chunk_id_source, Chunk.chunk_hash).where(Chunk.document_id == document_id)
         return dict(self.session.execute(stmt).all())
 
     def create_chunks_bulk(
@@ -179,14 +173,8 @@ class StateStore:
 
     def reset_collection_documents(self, collection_id: int) -> None:
         """Delete all documents and chunks for a collection from local state."""
-        doc_ids = list(
-            self.session.execute(
-                select(Document.id).where(Document.collection_id == collection_id)
-            ).scalars().all()
-        )
+        doc_ids = list(self.session.execute(select(Document.id).where(Document.collection_id == collection_id)).scalars().all())
         if doc_ids:
             self.session.execute(delete(Chunk).where(Chunk.document_id.in_(doc_ids)))
-            self.session.execute(
-                delete(Document).where(Document.collection_id == collection_id)
-            )
+            self.session.execute(delete(Document).where(Document.collection_id == collection_id))
         self.session.flush()

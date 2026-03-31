@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - 656-pipeline-dingestion-des-chunks-mediatech-dans-le-vector-db-via-lalbert-api
+      - feat/migrate-to-serverless-db
   workflow_dispatch:
 
 jobs:
