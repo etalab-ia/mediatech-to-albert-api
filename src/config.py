@@ -1,5 +1,5 @@
-from pydantic_settings import BaseSettings
 from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -17,10 +17,9 @@ class Settings(BaseSettings):
         description="HuggingFace API token for dataset access",
     )
 
-    # SQLite database
-    sqlite_path: str = Field(
-        default="./state.db",
-        description="Path to the SQLite database file for state tracking",
+    # Database
+    database_url: str = Field(
+        description="SQLAlchemy database URL (e.g. postgresql://user:pass@host:5432/dbname?sslmode=require)",
     )
 
     # Sync settings
@@ -86,11 +85,10 @@ DATASET_COLLECTION_DESCRIPTIONS: dict[str, str] = {
         "Source : https://www.legifrance.gouv.fr/"
     ),
     "AgentPublic/travail-emploi": (
-        "Fiches pédagogiques du Ministère du travail sur les questions relatives au droit du travail.\n"
-        "Source : https://travail-emploi.gouv.fr/"
+        "Fiches pédagogiques du Ministère du travail sur les questions relatives au droit du travail.\n" "Source : https://travail-emploi.gouv.fr/"
     ),
     "AgentPublic/service-public": (
-        "Fiches issues du site Service-Public.gouv.fr, site à destination des usagers. C'est un service généraliste qui répond, le plus précisément possible, aux questions que se posent les particuliers ou les associations face aux situations ou difficultés les plus courantes, telles que : \"Ai-je droit à une aide au logement ?\", \"Quel est le coût d'un passeport ?\", \"Comment obtenir le formulaire de demande d'aide juridictionnelle ?\", \"Puis-je faire mon changement d'adresse en ligne ?\".\n\n"
+        'Fiches issues du site Service-Public.gouv.fr, site à destination des usagers. C\'est un service généraliste qui répond, le plus précisément possible, aux questions que se posent les particuliers ou les associations face aux situations ou difficultés les plus courantes, telles que : "Ai-je droit à une aide au logement ?", "Quel est le coût d\'un passeport ?", "Comment obtenir le formulaire de demande d\'aide juridictionnelle ?", "Puis-je faire mon changement d\'adresse en ligne ?".\n\n'
         "Le site contient des fiches pratiques d'informations et des ressources utiles (formulaires, démarches en ligne, textes de référence, sites web publics, etc.) pour connaître et comprendre ses droits et obligations et réaliser des démarches administratives.\n"
         "Source : https://www.service-public.gouv.fr/"
     ),
@@ -173,8 +171,7 @@ DATASET_METADATA_FIELDS: dict[str, list[str]] = {
     ],
     "AgentPublic/travail-emploi": [
         "title",
-        "date"
-        "url",
+        "date" "url",
     ],
     "AgentPublic/local-administrations-directory": [
         "name",
@@ -208,14 +205,7 @@ DATASET_METADATA_FIELDS: dict[str, list[str]] = {
         "number",
         "decision_date",
     ],
-    "AgentPublic/cnil": [
-        "title",
-        "nature",
-        "nature_delib",
-        "status",
-        "number",
-        "date"
-    ],
+    "AgentPublic/cnil": ["title", "nature", "nature_delib", "status", "number", "date"],
 }
 
 

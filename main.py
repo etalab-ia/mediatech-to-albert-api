@@ -29,9 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", "-d", type=str, nargs="+", help="Sync only these datasets (space-separated)")
     parser.add_argument("--status", "-s", action="store_true", help="Show sync status and exit")
     parser.add_argument("--force", "-f", action="store_true", help="Force sync even if dataset unchanged")
-    parser.add_argument(
-        "--log-level", type=str, default=None, choices=["DEBUG", "INFO", "WARNING", "ERROR"]
-    )
+    parser.add_argument("--log-level", type=str, default=None, choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     return parser.parse_args()
 
 
@@ -50,52 +48,52 @@ def main() -> int:
     logger = logging.getLogger(__name__)
 
     with (
-        StateStore(settings.sqlite_path) as state_store,
+        StateStore(settings.database_url) as state_store,
         AlbertClient(settings.albert_api_url, settings.albert_api_token, requests_per_second=settings.requests_per_second) as albert_client,
     ):
-            hf_source = HuggingFaceSource(settings.huggingface_token)
+        hf_source = HuggingFaceSource(settings.huggingface_token)
 
-            if args.status:
-                print_status(state_store, albert_client, hf_source)
-                return 0
+        if args.status:
+            print_status(state_store, albert_client, hf_source)
+            return 0
 
-            logger.info("Starting Mediatech to Albert API sync")
-            logger.info(f"Albert API url: {settings.albert_api_url}")
+        logger.info("Starting Mediatech to Albert API sync")
+        logger.info(f"Albert API url: {settings.albert_api_url}")
 
-            if args.dataset:
-                for ds in args.dataset:
-                    if ds not in DATASETS:
-                        raise ValueError(f"Unknown dataset `{ds}`. Configured datasets: {DATASETS}")
-                datasets_to_sync = args.dataset
-            else:
-                datasets_to_sync = DATASETS
+        if args.dataset:
+            for ds in args.dataset:
+                if ds not in DATASETS:
+                    raise ValueError(f"Unknown dataset `{ds}`. Configured datasets: {DATASETS}")
+            datasets_to_sync = args.dataset
+        else:
+            datasets_to_sync = DATASETS
 
-            if args.force:
-                logger.info("Force flag set, clearing last_modified dates")
-                for ds_name in datasets_to_sync:
-                    coll = state_store.get_collection(ds_name)
-                    if coll:
-                        state_store.update_collection_last_modified(coll, "")
-                state_store.commit()
+        if args.force:
+            logger.info("Force flag set, clearing last_modified dates")
+            for ds_name in datasets_to_sync:
+                coll = state_store.get_collection(ds_name)
+                if coll:
+                    state_store.update_collection_last_modified(coll, "")
+            state_store.commit()
 
-            sync_service = SyncService(
-                settings=settings,
-                state_store=state_store,
-                albert_client=albert_client,
-                hf_source=hf_source,
+        sync_service = SyncService(
+            settings=settings,
+            state_store=state_store,
+            albert_client=albert_client,
+            hf_source=hf_source,
+        )
+        result = sync_service.sync_all(datasets_to_sync)
+        print_results(result)
+
+        if settings.tchap_access_token and settings.tchap_room_id:
+            notifier = TchapNotifier(
+                homeserver=settings.tchap_homeserver,
+                access_token=settings.tchap_access_token,
+                room_id=settings.tchap_room_id,
             )
-            result = sync_service.sync_all(datasets_to_sync)
-            print_results(result)
+            notifier.send(TchapNotifier.format_sync_result(result, settings.albert_api_url))
 
-            if settings.tchap_access_token and settings.tchap_room_id:
-                notifier = TchapNotifier(
-                    homeserver=settings.tchap_homeserver,
-                    access_token=settings.tchap_access_token,
-                    room_id=settings.tchap_room_id,
-                )
-                notifier.send(TchapNotifier.format_sync_result(result, settings.albert_api_url))
-
-            return 0 if result.success else 1
+        return 0 if result.success else 1
 
 
 if __name__ == "__main__":
